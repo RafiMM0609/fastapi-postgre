@@ -1,0 +1,537 @@
+from typing import Optional, List
+from sqlalchemy import or_, select, func, update
+from models.User import User
+from schemas.auth import (
+    LoginSuccessResponse,
+    LoginRequest,
+    SignupRequest,
+    EditPassRequest,
+    OtpRequest,
+)
+from core.security import (
+    generate_hash_password,
+    validated_user_password
+)
+from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime, timedelta
+from schemas.auth import (
+    LoginSuccess,
+    Organization
+)
+from core.mail import send_reset_password_email
+import secrets
+import string
+import traceback
+
+#function to resend otp for forget  passworw
+async def resend_forget_password_otp(db, email):
+    try:
+        # Check if the email exists in the database
+        user_response = (
+            db.table("user_tenant")
+            .select("user_id, email")
+            .eq("email", email)
+            .execute()
+        )
+
+        if not user_response.data:
+            raise ValueError("User with this email not found.")
+
+        user_data = user_response.data[0] # Get the first user record
+        user_id = user_data["user_id"]
+        user_email = user_data["email"] # Correctly assign user_email
+        random_token = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(6))
+    
+        expiry_time = datetime.now() + timedelta(minutes=10)
+        insert_data = {
+            "user_id": user_id,
+            "token": random_token,
+            "exp_datetime": expiry_time.isoformat(),
+            "created_at": datetime.now().isoformat(),
+        }
+        token_insert_response = (
+            db.table("user_login_token")
+            .insert(insert_data)
+            .execute()
+        )
+
+        await send_reset_password_email( 
+            email_to=user_email, # Use the fetched user_email
+            body={
+                "email": user_email,
+                "token": random_token,
+            }
+        )
+        return True
+
+    except ValueError as ve:
+        raise ve
+    except Exception as e:
+        print(f"Error in resend_forget_password_otp for {email}: {e}")
+        raise ValueError("Failed to process password reset request. Please try again later.")
+
+async def forgot_password(db, email):
+    try:
+        # Query the user from the User model using SQLAlchemy
+        query = select(User).filter(User.email == email)
+        result = await db.execute(query)
+        user_obj = result.scalar_one_or_none()
+
+        if not user_obj:
+            raise ValueError("User with this email not found.")
+
+        user_id = user_obj.user_id
+        user_email = user_obj.email
+        random_token = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(6))
+        expiry_time = datetime.now() + timedelta(minutes=10)
+
+
+        await send_reset_password_email( 
+            email_to=user_email,
+            body={
+                "email": user_email,
+                "token": random_token,
+            }
+        )
+        return True
+
+    except ValueError as ve:
+        raise ve
+    except Exception as e:
+        print(f"Error in forgot_password for {email}: {e}")
+        traceback.print_exc()
+        raise ValueError("Failed to process password reset request. Please try again later.")
+
+# set token to None and change password in user_tenant table
+async def change_password(db, token, password):
+    try:
+        # 1. Find user_id based on the reset token (from user_login_token table)
+        token_response = (
+            db.table("user_login_token")
+            .select("user_id, exp_datetime")
+            .eq("token", token)
+            .execute()
+        )
+
+        if not token_response.data:
+            raise ValueError("Invalid or expired token.")
+
+        token_data = token_response.data[0]
+        user_id = token_data["user_id"]
+
+        # 2. Check if token is valid and not expired
+        if "exp_datetime" in token_data and datetime.fromisoformat(token_data["exp_datetime"]) < datetime.now():
+             # 5. Invalidate or delete the used token from user_login_token (even if expired)
+            db.table("user_login_token").delete().eq("token", token).execute()
+            raise ValueError("Token has expired.")
+
+        # 3. Hash the new password
+        hashed_password = generate_hash_password(password)
+
+        # 4. Update the password in the user_tenant table
+        update_response = (
+            db.table("user_tenant")
+            .update({"password": hashed_password})
+            .eq("user_id", user_id)
+            .execute()
+        )
+
+        if not update_response.data:
+             # Attempt to delete token even if user update fails, to prevent reuse
+            db.table("user_login_token").update({"token": None}).eq("token", token).execute()
+            raise ValueError("Failed to update password.")
+
+        # 5. Invalidate or delete the used token from user_login_token
+        (
+            db.table("user_login_token")
+            .update({"token": None})
+            .eq("token", token)
+            .execute()
+        )
+
+        return True # Indicate success
+
+    except ValueError as ve:
+        raise ve
+    except Exception as e:
+        print("Error in change_password",e)
+        raise ValueError("Failed to process password change request. Please try again later.")
+    
+async def login(
+    db:any,
+    # subdomain:str,
+    request: LoginRequest,
+)->LoginSuccess:
+    try:
+        response = (
+            db.table("user_tenant")
+            .select("*")
+            .or_("username.eq.{},email.eq.{}".format(request.email, request.email))
+            .execute()
+        )
+        user_data = response.data[0]
+        
+        # Debug logs for hash comparison
+        generated_hash = validated_user_password(
+            user_data["password"],
+            request.password
+        )
+        if generated_hash:
+            # Generate random token with uppercase letters and numbers
+            token_length = 6
+            random_token = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(token_length))
+            
+            await send_login_token(
+                email_to=user_data["email"], 
+                body={
+                    "email": user_data["email"], 
+                    "token": random_token
+                    }
+                )
+            # Update token_login in user tenant table
+            update_response = (
+                db.table("user_tenant")
+                .update({"token_login": random_token})
+                .eq("user_id", user_data["user_id"])
+                .execute()
+            )
+            if not update_response.data:
+                raise ValueError("Failed to update login token")
+            # Insert token and exp time into user_login_token
+            insert_data = {
+                "user_id": user_data["user_id"],
+                "token": random_token,
+                "exp_datetime": (datetime.now() + timedelta(minutes=5)).isoformat(),
+                "created_at": datetime.now().isoformat(),
+            }
+            token_insert_response = (
+                db.table("user_login_token")
+                .insert(insert_data)
+                .execute()
+            )
+            if not update_response.data:
+                raise ValueError("Failed to update login token")
+            return user_data
+        else:
+            raise ValueError("Invalid username or password.")
+    # except ValueError as ve:
+    #     raise ve
+    except Exception as e:
+        print("Error login \n",e)
+        raise ValueError("Invalid username or password.")
+
+
+async def refresh_token_login(
+    db:any,
+    user:any
+)->LoginSuccess:
+    try:
+        # Generate random token with uppercase letters and numbers
+        token_length = 6
+        random_token = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(token_length))
+        # Update token_login in user tenant table
+        update_response = (
+            db.table("user_tenant")
+            .update({"token_login": random_token})
+            .eq("user_id", user["user_id"])
+            .execute()
+        )
+
+        insert_data = {
+            "user_id": user["user_id"],
+            "token": random_token,
+            "exp_datetime": (datetime.now() + timedelta(minutes=5)).isoformat(),
+            "created_at": datetime.now().isoformat(),
+        }
+        token_insert_response = (
+            db.table("user_login_token")
+            .insert(insert_data)
+            .execute()
+        )
+        
+        if not update_response.data:
+            raise ValueError("Failed to update login token")
+        
+        await send_login_token(
+            email_to=user["email"], 
+            body={
+                "email": user["email"], 
+                "token": random_token
+                }
+            )
+        return "oke"
+    except ValueError as ve:
+        raise ve
+    except Exception as e:
+        print("Error refresh_token_login",e)
+        raise ValueError("Login Failed")
+
+async def check_login_token(
+    db:any,
+    user_id:str,
+    token:str
+):
+    try:
+        response = (
+            db.table("user_login_token")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("token", token)
+            .execute()
+        )
+        if not response.data:
+            raise ValueError("Invalid token")
+        else:
+            # Check if the token has expired
+            token_data = response.data[0]
+            if "exp_datetime" in token_data and datetime.fromisoformat(token_data["exp_datetime"]) < datetime.now():
+                raise ValueError("Token has expired")
+            # Update token_login to None after successful login
+            update_response = (
+                db.table("user_login_token")
+                .update({"token": None})
+                .eq("user_id", user_id)
+                .execute()
+            )
+            if not update_response.data:
+                raise ValueError("Failed to update token_login")
+        
+        # check login token in user_tenant table
+        response = (
+            db.table("user_tenant")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("token_login", token)
+            .execute()
+        )
+        if not response.data:
+            raise ValueError("Invalid token")
+        else:
+            # Update token_login to None after successful login
+            update_response = (
+                db.table("user_tenant")
+                .update({"token_login": None})
+                .eq("user_id", user_id)
+                .execute()
+            )
+            if not update_response.data:
+                raise ValueError("Failed to update token_login")
+        return "oke"
+    except ValueError as ve:
+        raise ve
+    except Exception as e:
+        print("Error check_login_token",e)
+        raise ValueError(str(e))
+    
+async def get_id_tenant(
+    db:any,
+    subdomain:str,
+):
+    try:
+        response = (
+            db.table("tenant")
+            .select("id")
+            .eq("subdomain", subdomain)
+            .execute()
+        )
+        return response.data[0]["id"]
+    except Exception as e:
+        print("Error get_id_tenant",e)
+        raise ValueError(str(e))
+
+async def get_list_emp_id(
+    db:any,
+    subdomain:str,
+    id_tenant:str,
+):
+    try:
+        response = (
+            db.table("tenantusermapping")
+            .select("id_user")
+            .eq("id_tenant", id_tenant)
+            .execute()
+        )
+        return response.data
+    except Exception as e:
+        print("Error get_list_emp_id",e)
+        raise ValueError(str(e))
+    
+
+async def get_user_by_email(
+    db: AsyncSession, email: str, exclude_soft_delete: bool = False
+) -> Optional[User]:
+    try:
+        if exclude_soft_delete == True:
+            pass
+        else:
+            query = select(User).filter(User.email == email)
+        user = await db.execute(query).scalar()
+        return user
+    except Exception as e:
+        print("Error login : ",e)
+        traceback.print_exc()
+        return None
+async def check_user_password(db: AsyncSession, email: str, password: str) -> Optional[User]:
+    try:
+        user = await get_user_by_email(db, email=email)
+        if user is None:
+            return False
+        else:
+            if validated_user_password(user.password, password):
+                return user
+        return False
+    except Exception as e:
+        print("Error in check_user_password:", e)
+        traceback.print_exc()
+        return False
+
+
+def check_exist_user(
+    db:any,
+    email:str,
+    username:str
+):
+    try:
+        response = (
+            db.table("user_tenant")
+            .select("user_id")
+            .or_("email.eq.{}, username.eq.{}".format(email, username))
+            .execute()
+        )
+        print("response\n", response.data)
+        return response.data != []
+    except Exception as e:
+        print(e)
+        raise ValueError("Failed to check existing user")
+
+
+async def regis(
+    db: any, 
+    request: SignupRequest,
+):
+    # Check if the user already exists
+    if check_exist_user(db, request.email, request.username):
+        raise ValueError("User already exists")
+    
+    # Hash the password
+    request.password = generate_hash_password(request.password)
+    print("Hashed password during registration:", request.password)
+    
+    # Convert the request to a dictionary
+    insert_data = request.dict()
+    
+    try:
+        # Insert the data into the database
+        response = (
+            db.table("user_tenant")
+            .insert(insert_data)
+            .execute()
+        )
+        
+        return "oke"
+    except Exception as e:
+        raise ValueError(f"Registration failed: {str(e)}")
+    
+async def edit_password(
+    db:any,
+    request: EditPassRequest,
+):
+    request.password = generate_hash_password(request.password)
+    try:
+        response = (
+            db.table("users")
+            .update({"password":request.password})
+            .eq("email",request.email)
+            .execute()
+            )
+        if response.data == []:
+            raise ValueError("User not found")            
+        return "Success"
+    except Exception  as e:
+        raise ValueError(str(e))
+    
+async def list_user(
+    db: Session,
+    page: int = 1,
+    page_size: int = 10,
+    src: Optional[str] = None,
+    user: Optional[User] = None,
+    client_id: Optional[int] = None,
+    outlet_id: Optional[str] = None,
+):
+    try:
+        limit = page_size
+        offset = (page - 1) * limit
+        # get list role id that have permission to
+
+        # Query utama dengan JOIN ke Client dan UserRole
+        query = select(
+                User.id,
+                User.name,
+                )\
+                .filter(User.isact == True)
+
+        # Query count untuk paginasi
+        query_count = (select(func.count(User.id))
+                       .filter(User.isact == True)
+                       )
+
+        # If admin hanya client dia
+        # Jika ada pencarian (src), cari di nama user & nama client
+        if src:
+            query = (query.filter(
+                (User.name.ilike(f"%{src}%"))
+            ))
+
+            query_count = (query_count.filter(
+                (User.name.ilike(f"%{src}%"))
+            ))
+
+        # Tambahkan order, limit, dan offset
+        query = (query.order_by(User.created_at.desc())
+                 .limit(limit)
+                 .offset(offset))
+
+        # Eksekusi query
+        data = db.execute(query).all()
+        num_data = db.execute(query_count).scalar()
+        num_page = (num_data + limit - 1) // limit
+
+        return (data, num_data, num_page)
+
+    except Exception as e:
+        raise ValueError(e)
+
+async def verify_otp(
+    db: any,
+    request: OtpRequest,
+):
+    """
+    Verifies the OTP based on the provided TokenRequest payload.
+    """
+    try:
+        # Query the database for the OTP associated with the email
+        response = (
+            db.table("otp")
+            .select("*")
+            .eq("email", request.email)
+            .execute()
+        )
+        
+        if not response.data:
+            raise ValueError("OTP not found for the provided email")
+        
+        otp_record = response.data[0]
+        
+        # Check if the OTP matches
+        if otp_record["otp"] != request.otp:
+            raise ValueError("Invalid OTP")
+        
+        # Optionally, check if the OTP has expired
+        if "expires_at" in otp_record and otp_record["expires_at"] < datetime.utcnow():
+            raise ValueError("OTP has expired")
+        
+        return "OTP verified successfully"
+    except Exception as e:
+        raise ValueError(str(e))
