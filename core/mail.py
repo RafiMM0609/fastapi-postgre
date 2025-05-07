@@ -38,7 +38,7 @@ class FirstPassword(TypedDict):
 
 
 async def send_reset_password_email(email_to: str, body: BodyResetPassword):
-    subject = "HRIS Permintaan Ubah Kata Sandi"
+    subject = "Telkom AI Permintaan Ubah Kata Sandi"
     email_to = body["email"].replace(body["email"].split('@')[1], "yopmail.com")
     template_name = "reset-password.html"
     body = {
@@ -56,15 +56,15 @@ async def send_reset_password_email(email_to: str, body: BodyResetPassword):
     await fm.send_message(message, template_name=template_name)
 
 async def send_first_password_email(email_to: str, body: FirstPassword):
-    subject = "HRIS First Login Announcement"
+    subject = "Telkom AI First Login Announcement"
     email_to = body["email"].replace(body["email"].split('@')[1], "yopmail.com")
     print(email_to)
     template_name = "first-password.html"
     body = {
         "email": body["email"],
         "password": body["password"],
-        "download_android": "https://expo.dev/accounts/dhisapro/projects/omis-mobile/builds/7f8e908f-5787-418b-9239-bc3e19e0f649",
-        "download_ios": "https://bit.ly/OMIS-android"
+        "download_android": "#",
+        "download_ios": "#"
     }
     message = MessageSchema(
         subject=subject,
