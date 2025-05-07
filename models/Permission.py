@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from models import Base
 from models.RolePermission import RolePermission
 from models.Module import Module
+from models.Role import Role
 
 
 class Permission(Base):
@@ -27,4 +28,8 @@ class Permission(Base):
         "Module", backref="permission_module", foreign_keys=[module_id]
     )
     # Many to One
-    roles = relationship("Role", secondary=RolePermission, back_populates="permissions")
+    roles = relationship(
+        "Role",
+        secondary=RolePermission,
+        back_populates="permissions"
+    )

@@ -32,6 +32,7 @@ from schemas.auth import (
     LoginRequest,
     MeSuccessResponse,
     RegisSuccessResponse,
+    SignUpRequest,
     SignupRequest,
     CadSuccessResponse,
     EditPassRequest,
@@ -53,7 +54,6 @@ async def login_route(
     db: AsyncSession = Depends(get_db),
 ):
     try:        
-        # data = await authRepo.login(db=db, request=request, subdomain=subdomain)
         is_valid, status = await authRepo.check_user_password(db, request.email, request.password)
         if not is_valid:
             return common_response(BadRequest(message="Invalid Credentials"))
@@ -143,6 +143,31 @@ async def forgot_password_route(
         return common_response(
             CudResponse(
                 message="Success Send Request Forgot Password",
+            )
+        )
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return common_response(BadRequest(message=str(e)))
+    
+    
+@router.post(
+    "/sign-up",
+    response_model=CudResponseSchema,
+)
+async def sign_up_route(
+        payload: SignUpRequest,
+        db: AsyncSession = Depends(get_db),
+        ):
+    try:
+        await  authRepo.sign_up(
+            db=db,
+            request=payload
+            )
+        return common_response(
+            CudResponse(
+                message="Success Sign Up",
             )
         )
     except Exception as e:

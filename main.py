@@ -72,7 +72,7 @@ async def hello():
     <html lang="en">
     <head>
         <meta charset="UTF-8">
-        <title>PDP Multitenant</title>
+        <title>Telkom AI dashboard</title>
         <style>
             body {
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);

@@ -20,7 +20,6 @@ Layanan backend otentikasi berbasis FastAPI, PostgreSQL, dan Sentry.
 - PostgreSQL
 - Redis
 - (Opsional) Minio untuk file storage
-- (Opsional) Kafka, Supabase
 
 ## Instalasi
 

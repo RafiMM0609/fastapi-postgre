@@ -97,3 +97,9 @@ class LoginTokenRequest(BaseModel):
 class ChangePasswordRequest(BaseModel):
     token: str
     password: str
+
+class SignUpRequest(BaseModel):
+    email: str
+    password: str
+    name: str
+    phone: str

@@ -6,11 +6,11 @@ from sqlalchemy.exc import SQLAlchemyError
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-DB_USER = 'rafi'
-DB_PASS = '1234'
+DB_USER = 'postgres'
+DB_PASS = 'root'
 DB_HOST = 'localhost'
-DB_PORT = 3306
-DB_NAME = 'hris'
+DB_PORT = 5433
+DB_NAME = 'dcs_dashboard'
 
 DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 

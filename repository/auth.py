@@ -4,6 +4,7 @@ from models.User import User
 from schemas.auth import (
     LoginSuccessResponse,
     LoginRequest,
+    SignUpRequest,
     SignupRequest,
     EditPassRequest,
     OtpRequest,
@@ -452,7 +453,7 @@ async def edit_password(
         raise ValueError(str(e))
     
 async def list_user(
-    db: Session,
+    db: AsyncSession,
     page: int = 1,
     page_size: int = 10,
     src: Optional[str] = None,
@@ -477,8 +478,6 @@ async def list_user(
                        .filter(User.isact == True)
                        )
 
-        # If admin hanya client dia
-        # Jika ada pencarian (src), cari di nama user & nama client
         if src:
             query = (query.filter(
                 (User.name.ilike(f"%{src}%"))
@@ -493,9 +492,15 @@ async def list_user(
                  .limit(limit)
                  .offset(offset))
 
-        # Eksekusi query
-        data = db.execute(query).all()
-        num_data = db.execute(query_count).scalar()
+        # Eksekusi query dengan await
+        result = await db.execute(query)
+        rows = result.all()
+        
+        # Konversi Row objects ke dictionary
+        data = [{"id": row.id, "name": row.name} for row in rows]
+        
+        count_result = await db.execute(query_count)
+        num_data = count_result.scalar()
         num_page = (num_data + limit - 1) // limit
 
         return (data, num_data, num_page)
@@ -534,4 +539,22 @@ async def verify_otp(
         
         return "OTP verified successfully"
     except Exception as e:
+        raise ValueError(str(e))
+    
+async def sign_up (
+    db: AsyncSession,
+    request: SignUpRequest,
+):
+    try:
+        data =  User(
+            email=request.email,
+            password=generate_hash_password(request.password),
+            name=request.name,
+            phone=request.phone,
+        )
+        db.add(data)
+        await db.commit()
+        return "oke"
+    except Exception as e:
+        traceback.print_exc()
         raise ValueError(str(e))
