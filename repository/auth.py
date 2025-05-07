@@ -1,6 +1,8 @@
 from typing import Optional, List
 from sqlalchemy import or_, select, func, update
+from models.Role import Role
 from models.User import User
+from models.UserToken import UserToken
 from schemas.auth import (
     LoginSuccessResponse,
     LoginRequest,
@@ -26,6 +28,29 @@ import string
 import traceback
 
 #function to resend otp for forget  passworw
+
+async def create_user_session(db: Session, user_id: str, token:str) -> str:
+    try:
+        exist_data = await db.execute(
+            select(UserToken).filter(
+                UserToken.emp_id == user_id,
+                UserToken.token == token
+            )
+        )
+        exist_data = exist_data.scalar()
+        if exist_data is not None:
+            exist_data.is_active = True
+            db.add(exist_data)
+            await db.commit()
+        else:
+            user_token = UserToken(emp_id=user_id, token=token)
+            db.add(user_token)
+            await db.commit()
+        return 'succes'
+    except Exception as e:
+        print(f"Error creating user session: \n {e}")
+        raise ValueError("Failed to create user session")
+        
 async def resend_forget_password_otp(db, email):
     try:
         # Check if the email exists in the database
@@ -325,39 +350,6 @@ async def check_login_token(
         print("Error check_login_token",e)
         raise ValueError(str(e))
     
-async def get_id_tenant(
-    db:any,
-    subdomain:str,
-):
-    try:
-        response = (
-            db.table("tenant")
-            .select("id")
-            .eq("subdomain", subdomain)
-            .execute()
-        )
-        return response.data[0]["id"]
-    except Exception as e:
-        print("Error get_id_tenant",e)
-        raise ValueError(str(e))
-
-async def get_list_emp_id(
-    db:any,
-    subdomain:str,
-    id_tenant:str,
-):
-    try:
-        response = (
-            db.table("tenantusermapping")
-            .select("id_user")
-            .eq("id_tenant", id_tenant)
-            .execute()
-        )
-        return response.data
-    except Exception as e:
-        print("Error get_list_emp_id",e)
-        raise ValueError(str(e))
-    
 
 async def get_user_by_email(
     db: AsyncSession, email: str, exclude_soft_delete: bool = False
@@ -367,7 +359,8 @@ async def get_user_by_email(
             pass
         else:
             query = select(User).filter(User.email == email)
-        user = await db.execute(query).scalar()
+        results = await db.execute(query)
+        user = results.scalar()
         return user
     except Exception as e:
         print("Error login : ",e)
@@ -387,52 +380,6 @@ async def check_user_password(db: AsyncSession, email: str, password: str) -> Op
         traceback.print_exc()
         return False
 
-
-def check_exist_user(
-    db:any,
-    email:str,
-    username:str
-):
-    try:
-        response = (
-            db.table("user_tenant")
-            .select("user_id")
-            .or_("email.eq.{}, username.eq.{}".format(email, username))
-            .execute()
-        )
-        print("response\n", response.data)
-        return response.data != []
-    except Exception as e:
-        print(e)
-        raise ValueError("Failed to check existing user")
-
-
-async def regis(
-    db: any, 
-    request: SignupRequest,
-):
-    # Check if the user already exists
-    if check_exist_user(db, request.email, request.username):
-        raise ValueError("User already exists")
-    
-    # Hash the password
-    request.password = generate_hash_password(request.password)
-    print("Hashed password during registration:", request.password)
-    
-    # Convert the request to a dictionary
-    insert_data = request.dict()
-    
-    try:
-        # Insert the data into the database
-        response = (
-            db.table("user_tenant")
-            .insert(insert_data)
-            .execute()
-        )
-        
-        return "oke"
-    except Exception as e:
-        raise ValueError(f"Registration failed: {str(e)}")
     
 async def edit_password(
     db:any,
@@ -507,54 +454,27 @@ async def list_user(
 
     except Exception as e:
         raise ValueError(e)
-
-async def verify_otp(
-    db: any,
-    request: OtpRequest,
-):
-    """
-    Verifies the OTP based on the provided TokenRequest payload.
-    """
-    try:
-        # Query the database for the OTP associated with the email
-        response = (
-            db.table("otp")
-            .select("*")
-            .eq("email", request.email)
-            .execute()
-        )
-        
-        if not response.data:
-            raise ValueError("OTP not found for the provided email")
-        
-        otp_record = response.data[0]
-        
-        # Check if the OTP matches
-        if otp_record["otp"] != request.otp:
-            raise ValueError("Invalid OTP")
-        
-        # Optionally, check if the OTP has expired
-        if "expires_at" in otp_record and otp_record["expires_at"] < datetime.utcnow():
-            raise ValueError("OTP has expired")
-        
-        return "OTP verified successfully"
-    except Exception as e:
-        raise ValueError(str(e))
     
 async def sign_up (
     db: AsyncSession,
     request: SignUpRequest,
 ):
     try:
+        result = await db.execute(
+            select(Role)
+            .filter(Role.id == 1, Role.isact == True)
+        )
+        role = result.scalar()
         data =  User(
             email=request.email,
             password=generate_hash_password(request.password),
             name=request.name,
             phone=request.phone,
         )
+        data.roles.append(role)
         db.add(data)
         await db.commit()
-        return "oke"
+        return True
     except Exception as e:
         traceback.print_exc()
         raise ValueError(str(e))

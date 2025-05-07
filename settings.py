@@ -24,7 +24,7 @@ SUPABASE_KEY_SERVICE = os.environ.get("SUPABASE_KEY_SERVICE")
 
 # JWT conf
 JWT_PREFIX = os.environ.get("JWT_PREFIX", "Bearer")
-SECRET_KEY = os.environ.get("SECRET_KEY")
+SECRET_KEY = os.environ.get("SECRET_KEY", "98yt7ftdviuqedfhcu4gr894c2nr")
 ALGORITHM = os.environ.get("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 

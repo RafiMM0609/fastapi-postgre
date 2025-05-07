@@ -7,10 +7,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 DB_USER = 'postgres'
-DB_PASS = 'root'
+DB_PASS = '0000'
 DB_HOST = 'localhost'
-DB_PORT = 5433
-DB_NAME = 'dcs_dashboard'
+DB_PORT = 5432
+DB_NAME = 'telkomai'
 
 DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
@@ -20,7 +20,7 @@ engine = create_async_engine(
     max_overflow=40,
     pool_recycle=1800,
     pool_timeout=30,
-    echo=True,
+    echo=False,
 )
 
 async_session = async_sessionmaker(

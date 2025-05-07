@@ -90,7 +90,7 @@ async def update_multiple_permission(
             updated_permissions.append(data)
             
         return common_response(
-            Ok(data={"updated_permissions": updated_permissions}, message="Permissions updated successfully")
+            CudResponse(data={"updated_permissions": updated_permissions}, message="Permissions updated successfully")
         )
     except ValueError as e:
         return common_response(BadRequest(message=str(e)))

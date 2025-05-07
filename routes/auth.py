@@ -1,4 +1,6 @@
+
 import traceback
+from core.file import generate_link_download
 from fastapi import APIRouter, Depends, Request, BackgroundTasks, UploadFile, File, Form, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -26,18 +28,11 @@ from schemas.common import (
     CudResponseSchema,
 )
 from schemas.auth import (
-    ChangePasswordRequest,
     LoginSuccessResponse,
     LoginSuccess,
     LoginRequest,
     MeSuccessResponse,
-    RegisSuccessResponse,
     SignUpRequest,
-    SignupRequest,
-    CadSuccessResponse,
-    EditPassRequest,
-    ListUserRequest,
-    LoginTokenRequest,
 )
 import repository.auth  as authRepo
 from urllib.parse import urlparse
@@ -54,14 +49,13 @@ async def login_route(
     db: AsyncSession = Depends(get_db),
 ):
     try:        
-        is_valid, status = await authRepo.check_user_password(db, request.email, request.password)
+        is_valid = await authRepo.check_user_password(db, request.email, request.password)
         if not is_valid:
             return common_response(BadRequest(message="Invalid Credentials"))
 
         user = is_valid
         token = await generate_jwt_token_from_user(user=user)
-        if not user.first_login:
-            await authRepo.create_user_session(db=db, user_id=user.id, token=token)
+        await authRepo.create_user_session(db=db, user_id=user.id, token=token)
         data_response = LoginSuccess(
             user_id=str(user.id),
             email=user.email,
@@ -69,7 +63,7 @@ async def login_route(
         )
         return common_response(
             Ok(
-                data=LoginSuccess(**data_response).model_dump(),
+                data=data_response.model_dump(),
                 message="Success login",
             )
         )
@@ -84,7 +78,7 @@ async def generate_token(
     form_data: OAuth2PasswordRequestForm = Depends()
 ):
     try:
-        is_valid = authRepo.check_user_password(
+        is_valid =await authRepo.check_user_password(
             db, form_data.username, form_data.password
         )
         if not is_valid:
@@ -107,7 +101,8 @@ async def generate_token(
 async def list_user(
     db: AsyncSession = Depends(get_db),
     page: int = 1,
-    page_size: int = 10
+    page_size: int = 10,
+    token: str = Depends(oauth2_scheme),
 ):
     try:
         data, num_data, num_page = await authRepo.list_user(db=db, page=page, page_size=page_size)
@@ -153,7 +148,7 @@ async def forgot_password_route(
     
     
 @router.post(
-    "/sign-up",
+    "/signup",
     response_model=CudResponseSchema,
 )
 async def sign_up_route(
@@ -168,6 +163,51 @@ async def sign_up_route(
         return common_response(
             CudResponse(
                 message="Success Sign Up",
+            )
+        )
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return common_response(BadRequest(message=str(e)))
+    
+@router.get(
+    "/me",
+    responses={
+        "200": {"model": MeSuccessResponse},
+        "400": {"model": BadRequestResponse},
+        "401": {"model": UnauthorizedResponse},
+        "500": {"model": InternalServerErrorResponse},
+    },
+)
+async def me(
+        request: Request,
+        db: Session = Depends(get_db),
+        token: str = Depends(oauth2_scheme)
+        ):
+    try:
+        user = await get_user_from_jwt_token(db, token)
+        if not user:
+            return common_response(Unauthorized())
+        old_token = token
+        refresh_token = await generate_jwt_token_from_user(user=user)
+        return common_response(
+            Ok(
+                data={
+                    "id": str(user.id),
+                    "email": user.email,
+                    "name": user.name,
+                    "isact": user.isact,
+                    "phone": user.phone,
+                    "refreshed_token": refresh_token,
+                    "image": generate_link_download(user.photo),
+                    "role": {
+                        "id": user.roles[0].id if user.roles else None,
+                        "name": user.roles[0].name if user.roles else None,
+                    },
+                    "address":user.address,
+                    "photo": generate_link_download(user.photo),
+                }
             )
         )
     except Exception as e:

@@ -1,3 +1,4 @@
+import traceback
 from typing import List, Optional
 from datetime import datetime, timedelta
 from fastapi.security import OAuth2PasswordBearer
@@ -34,27 +35,31 @@ def validated_user_password(hash: str, password: str) -> bool:
 async def generate_jwt_token_from_user(
     user: User, ignore_timezone: bool = False
 ) -> str:
-    # expire = datetime.now() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    expire = datetime.now() + timedelta(minutes=60*24)
-    # expire = datetime.now() + timedelta(minutes=1)
-    if ignore_timezone == False:  # For testing
-        expire = expire.astimezone(timezone(TZ))
-    """
-    {
-    "user_id": 671,
-    "username": "bima@qti.co.id",
-    "email": "bima@qti.co.id",
-    "exp": 1641455971,
-    }
-    """
-    payload = {
-        "id": str(user.id),
-        "username": user.email,
-        "email": user.email,
-        "exp": expire,
-    }
-    jwt_token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
-    return jwt_token
+    try:
+        # expire = datetime.now() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now() + timedelta(minutes=60*24)
+        # expire = datetime.now() + timedelta(minutes=1)
+        if ignore_timezone == False:  # For testing
+            expire = expire.astimezone(timezone(TZ))
+        """
+        {
+        "user_id": 671,
+        "username": "bima@qti.co.id",
+        "email": "bima@qti.co.id",
+        "exp": 1641455971,
+        }
+        """
+        payload = {
+            "id": str(user.id),
+            "username": user.email,
+            "email": user.email,
+            "exp": expire,
+        }
+        jwt_token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+        return jwt_token
+    except Exception as e:
+        traceback.print_exc()
+        raise ValueError(e)
 
 async def generate_jwt_token_from_user_mobile(
     user: User, ignore_timezone: bool = False
@@ -107,19 +112,20 @@ async def generate_refresh_jwt_token_from_user(
     return jwt_token
 
 
-def get_user_from_jwt_token(db: Session, jwt_token: str) -> Optional[User]:
+async def get_user_from_jwt_token(db: Session, jwt_token: str) -> Optional[User]:
     try:
         payload = jwt.decode(token=jwt_token, key=SECRET_KEY, algorithms=ALGORITHM)
         if payload["exp"] < datetime.now().timestamp():
             return None
         id = payload.get("id")
         query = select(User).where(User.id == id)
-        user = db.execute(query).scalar()
+        user = await db.execute(query)
+        user = user.scalar()
+        return user
     except JWTError:
         return None
     except Exception as e:
         return None
-    return user
 
 
 def get_user_permissions(db: Session, user: User) -> List[Permission]:

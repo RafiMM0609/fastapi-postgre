@@ -102,4 +102,4 @@ class SignUpRequest(BaseModel):
     email: str
     password: str
     name: str
-    phone: str
+    phone: Optional[str] = None
