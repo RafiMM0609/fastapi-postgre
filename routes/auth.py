@@ -190,6 +190,7 @@ async def me(
         if not user:
             return common_response(Unauthorized())
         old_token = token
+        print(user)
         refresh_token = await generate_jwt_token_from_user(user=user)
         return common_response(
             Ok(
@@ -201,10 +202,10 @@ async def me(
                     "phone": user.phone,
                     "refreshed_token": refresh_token,
                     "image": generate_link_download(user.photo),
-                    "role": {
-                        "id": user.roles[0].id if user.roles else None,
-                        "name": user.roles[0].name if user.roles else None,
-                    },
+                    # "role": {
+                    #     "id": user.roles[0].id if user.roles else None,
+                    #     "name": user.roles[0].name if user.roles else None,
+                    # },
                     "address":user.address,
                     "photo": generate_link_download(user.photo),
                 }
