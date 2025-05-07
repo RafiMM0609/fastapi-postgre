@@ -79,7 +79,7 @@ if not FILE_STORAGE_ADAPTER in ["local", "minio"]:
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 if not os.path.exists(UPLOAD_DIR):
     os.makedirs(UPLOAD_DIR)
-ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", "stecustecu9")
+ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", "uhuhuhuhu")
 DEFAULT_SCHEMA = os.environ.get("DEFAULT_SCHEMA", None)
 DEFAULT_ROLE_PASSWORD = os.environ.get("DEFAULT_ROLE_PASSWORD", None)
 DEFAULT_DB_USERNAME = os.environ.get("DEFAULT_DB_USERNAME", None)   
