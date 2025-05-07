@@ -51,7 +51,7 @@ async def get_role_management(
                 "role_id": role.id,
                 "name": role.name,
                 "description": role.description,
-                "group": role.group,
+                "role": role.group,
                 "access_feature": role.access_feature,
                 "permissions": permissions_data,
                 "created_at": role.created_at,
