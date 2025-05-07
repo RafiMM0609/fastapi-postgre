@@ -216,3 +216,68 @@ async def me(
 
         traceback.print_exc()
         return common_response(BadRequest(message=str(e)))
+    
+# @router.get(
+#     "/permissions",
+#     responses={
+#         "200": {"model": PermissionsResponse},
+#         "401": {"model": UnauthorizedResponse},
+#         "500": {"model": InternalServerErrorResponse},
+#     },
+# )
+# async def permissions(
+#     request: Request,
+#     db: Session = Depends(get_db),
+#     token: str = Depends(oauth2_scheme)
+# ):
+#     try:
+#         user = get_user_from_jwt_token(db, token)
+#         if not user:
+#             return common_response(Unauthorized())
+#         user_permissions = get_user_permissions(db=db, user=user)
+
+#         return common_response(
+#             Ok(
+#                 data={
+#                     "results": [
+#                         {
+#                             "id": x.id,
+#                             "permission": x.name,
+#                             "module": {
+#                                 "id": x.module.id,
+#                                 "nama": x.module.name,
+#                             }
+#                             if x.module != None
+#                             else None,
+#                         }
+#                         for x in user_permissions
+#                     ]
+#                 },
+#                 message="Success get permisson"
+#             )
+#         )
+#     except Exception as e:
+#         return common_response(BadRequest(message=str(e)))
+    
+# @router.get(
+#     "/menu",
+#     responses={
+#         "200": {"model": MenuResponse},
+#         "401": {"model": UnauthorizedResponse},
+#         "500": {"model": InternalServerErrorResponse},
+#     },
+# )
+# async def menu(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
+#     try:
+#         user = get_user_from_jwt_token(db, token)
+#         if not user:
+#             return common_response(Unauthorized())
+
+#         list_menu = authRepo.generate_menu_tree_for_user(db=db, user=user)
+
+#         return common_response(Ok(data={"results": list_menu}))
+#     except Exception as e:
+#         import traceback
+
+#         traceback.print_exc()
+#         return common_response(BadRequest(message=str(e)))
