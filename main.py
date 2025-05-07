@@ -11,6 +11,7 @@ from settings import (
 )
 from core.logging_config import logger
 from routes.auth import router as auth_router
+from routes.rbac import router as rbac_router
 from fastapi.responses import HTMLResponse
 
 
@@ -27,7 +28,7 @@ if SENTRY_DSN != None:  # NOQA
     # --- shutdown ---
 # Inisialisasi FastAPI berdasarkan ENVIRONTMENT
 fastapi_kwargs = {
-    "title": "PDP Multitenant",
+    "title": "Telkom AI",
     "swagger_ui_oauth2_redirect_url": "/docs/oauth2-redirect",
     "swagger_ui_init_oauth": {
         "clientId": "your-client-id",
@@ -63,6 +64,8 @@ if FILE_STORAGE_ADAPTER != 'minio':
 
 
 app.include_router(auth_router, prefix="/auth")
+app.include_router(rbac_router, prefix="/rbac")
+
 
 
 @app.get("/")

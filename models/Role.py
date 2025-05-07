@@ -11,6 +11,8 @@ class Role(Base):
     id = Column(Integer, primary_key=True, nullable=False, index=True)
     name = Column(String, nullable=False, index=True)
     description = Column(String, nullable=True)
+    group = Column(String, nullable=True)
+    access_feature = Column(String, nullable=True)
     created_by = Column(ForeignKey("user.id"), nullable=True)
     updated_by = Column(ForeignKey("user.id"), nullable=True)
     created_at = Column(DateTime(timezone=True))
