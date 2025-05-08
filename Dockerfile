@@ -31,4 +31,4 @@ COPY . .
 
 # Run the application with poetry
 # CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--loop", "uvloop", "--http", "httptools", "--backlog", "2048", "--reload"]
-CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "6", "--loop", "uvloop", "--http", "httptools", "--backlog", "2048"]
+CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
