@@ -1,5 +1,8 @@
 from typing import Optional, List
-from sqlalchemy import or_, select, func, update
+from pytz import timezone
+from sqlalchemy import or_, select, func, update, delete
+from core.utils import generate_token, generate_token_custom
+from models.ForgotPassword import ForgotPassword
 from models.Menu import Menu
 from models.Permission import Permission
 from models.Role import Role
@@ -32,6 +35,70 @@ from core.mail import send_reset_password_email
 import secrets
 import string
 import traceback
+
+from settings import TZ
+
+
+async def change_user_password_by_token(
+    db: AsyncSession, token: str, new_password: str
+) -> Optional[User]:
+    query = select(ForgotPassword).where(ForgotPassword.token == token)
+    result = await db.execute(query)
+    forgot_password = result.scalar()
+    if forgot_password == None:
+        return None
+
+    if (forgot_password.created_date + timedelta(minutes=10)) < datetime.now():
+        return False
+
+    user_id = forgot_password.user_id
+    user = await db.execute(select(User).filter(User.id == user_id))
+    user = user.scalar()
+    user.password = generate_hash_password(password=new_password)
+    db.add(user)
+    await db.execute(delete(ForgotPassword).where(ForgotPassword.user_id == user.id))
+    await db.commit()
+    return user
+
+async def generate_token_forgot_password(db: AsyncSession, user: User) -> str:
+    try:
+        """
+        generate token -> save user and token to database -> return generated token
+        """
+        token = generate_token_custom()
+        forgot_password = ForgotPassword(user_id=user.id, token=token, created_date = datetime.now())
+        db.add(forgot_password)
+        await db.commit()
+        return token
+    except Exception as e:
+        print("Error generate token forgot password", e)
+        traceback.print_exc()
+        raise ValueError("Failed to generate token forgot password")
+
+async def logout_user(db:AsyncSession, user:User, token:str):
+    try:
+        result = await db.execute(
+            select(UserToken).filter(
+                UserToken.emp_id == user.id,
+                UserToken.token == token,
+                UserToken.isact == True
+            )
+        )
+        exist_data = result.scalar()
+        # print("exist data", exist_data)
+        if exist_data is not None:
+            exist_data.isact = False
+            db.add(exist_data)
+            await db.commit()
+        else:
+            raise ValueError("User session not found")
+        print("DISINI CO")
+        return "oke"
+    except Exception as e:
+        print("Error logout_user",e)
+        raise ValueError("Logout Failed")
+    
+    
 
 #function to resend otp for forget  passworw
 def expand_menu_tree_with_permissions(
@@ -178,12 +245,12 @@ async def forgot_password(db, email):
         # Query the user from the User model using SQLAlchemy
         query = select(User).filter(User.email == email)
         result = await db.execute(query)
-        user_obj = result.scalar_one_or_none()
+        user_obj = result.scalar()
 
         if not user_obj:
             raise ValueError("User with this email not found.")
 
-        user_id = user_obj.user_id
+        user_id = user_obj.id
         user_email = user_obj.email
         random_token = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(6))
         expiry_time = datetime.now() + timedelta(minutes=10)

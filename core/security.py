@@ -12,6 +12,7 @@ from models.Permission import Permission
 from models.Role import Role
 from models.User import User
 # from models.Permission import Permission
+from models.UserToken import UserToken
 from settings import ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM, TZ
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -121,6 +122,14 @@ async def get_user_from_jwt_token(db: Session, jwt_token: str) -> Optional[User]
         if payload["exp"] < datetime.now().timestamp():
             return None
         id = payload.get("id")
+        result_user_token = await db.execute(
+            select(UserToken).where(UserToken.token == jwt_token, UserToken.emp_id == id)
+        )
+        user_token = result_user_token.scalar()
+        if user_token == None:
+            return None
+        if user_token.isact == False:
+            return None
         result = await db.execute(
             select(User).options(
                 selectinload(User.roles).selectinload(Role.permissions).selectinload(Permission.module)

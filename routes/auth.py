@@ -1,6 +1,7 @@
 
 import traceback
 from core.file import generate_link_download
+from core.mail import send_reset_password_email
 from fastapi import APIRouter, Depends, Request, BackgroundTasks, UploadFile, File, Form, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -28,6 +29,9 @@ from schemas.common import (
     CudResponseSchema,
 )
 from schemas.auth import (
+    ForgotPasswordChangePasswordRequest,
+    ForgotPasswordChangePasswordResponse,
+    ForgotPasswordSendEmailRequest,
     LoginSuccessResponse,
     LoginSuccess,
     LoginRequest,
@@ -35,6 +39,7 @@ from schemas.auth import (
     MenuResponse,
     PermissionsResponse,
     SignUpRequest,
+    ForgotPasswordSendEmailResponse,
 )
 import repository.auth  as authRepo
 from urllib.parse import urlparse
@@ -87,6 +92,7 @@ async def generate_token(
             return common_response(BadRequest(message="Invalid Credentials"))
         user = is_valid
         token = await generate_jwt_token_from_user(user=user)
+        await authRepo.create_user_session(db=db, user_id=user.id, token=token)
         return {"access_token": token, "token_type": "Bearer"}
     except Exception as e:
         return common_response(BadRequest(message=str(e)))
@@ -125,29 +131,62 @@ async def list_user(
 )
 
 @router.post(
-    "/forgot-password/{email}",
-    response_model=CudResponseSchema,
+    "/forgot-password/send-email",
+    responses={
+        "200": {"model": ForgotPasswordSendEmailResponse},
+        "400": {"model": UnauthorizedResponse},
+        "500": {"model": InternalServerErrorResponse},
+    },
 )
-async def forgot_password_route(
-        email: str,
-        db: AsyncSession = Depends(get_db),
-        ):
+async def request_forgot_password_send_email(
+    request: ForgotPasswordSendEmailRequest,
+    db: Session = Depends(get_db)
+    # token: str = Depends(oauth2_scheme)
+):
     try:
-        await  authRepo.forgot_password(
-            db=db,
-            email=email
-            )
+        user= await authRepo.get_user_by_email(db=db, email=request.email)
+        if user == None:
+            return common_response(BadRequest(message='user not found'))
+
+        token = await authRepo.generate_token_forgot_password(db=db, user=user)
+        await send_reset_password_email(
+            email_to=user.email, 
+            body={
+                "email": user.email,
+                "token": token,
+            })
         return common_response(
-            CudResponse(
-                message="Success Send Request Forgot Password",
+            Ok(
+                message="success kirim email ganti password, silahkan cek email anda"
             )
         )
     except Exception as e:
-        import traceback
-
         traceback.print_exc()
         return common_response(BadRequest(message=str(e)))
-    
+
+@router.post(
+    "/forgot-password/change-password",
+    responses={
+        "200": {"model": ForgotPasswordChangePasswordResponse},
+        "500": {"model": InternalServerErrorResponse},
+    },
+)
+async def request_forgot_password_change_password(
+    request: ForgotPasswordChangePasswordRequest,
+    db: Session = Depends(get_db)
+):
+    try:
+        user = await authRepo.change_user_password_by_token(
+            db=db, token=request.token, new_password=request.password
+        )
+        if user == None:
+            return common_response(BadRequest(message="User Not Found"))
+        elif user == False:
+            return common_response(Unauthorized(message="Invalid/Expired Token for Change Password"))
+
+        return common_response(Ok(message="success menganti password anda"))
+    except Exception as e:
+        return common_response(BadRequest(message=str(e)))
     
 @router.post(
     "/signup",
@@ -277,6 +316,27 @@ async def menu(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme
         list_menu = await authRepo.generate_menu_tree_for_user(db=db, user=user)
 
         return common_response(Ok(data={"results": list_menu}))
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return common_response(BadRequest(message=str(e)))
+
+@router.post(
+    "/logout",
+    responses={
+        "201": {"model": CudResponseSchema},
+        "401": {"model": UnauthorizedResponse},
+        "500": {"model": InternalServerErrorResponse},
+    },
+)
+async def logout_route(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
+    try:
+        user = await get_user_from_jwt_token(db, token)
+        if not user:
+            return common_response(Unauthorized())
+        await authRepo.logout_user(db=db, user=user, token=token)
+        return common_response(Ok(message="Successfully logged out."))
     except Exception as e:
         import traceback
 
