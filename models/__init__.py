@@ -1,8 +1,11 @@
 import logging
+import os
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.exc import SQLAlchemyError
-
+if os.environ.get("ENVIRONTMENT") != "prod":
+    from dotenv import load_dotenv
+ 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 from settings import (

@@ -49,9 +49,14 @@ router = APIRouter(tags=["Role Management"])
     },
 )
 async def role_management(
-    db: AsyncSession = Depends(get_db),
+    db: Session = Depends(get_db),
+    token: str = Depends(oauth2_scheme)
+
 ):
     try:
+        user = await get_user_from_jwt_token(db, token)
+        if not user:
+            return common_response(Unauthorized())
         data = await rbacRepo.get_role_management(db)
         return common_response(
             Ok(data=data)
@@ -76,9 +81,12 @@ async def role_management(
 )
 async def update_multiple_permission(
     request: UpdateMultiplePermissionRequest,
-    db: AsyncSession = Depends(get_db),
-):
+    db: Session = Depends(get_db),
+    token: str = Depends(oauth2_scheme)):
     try:
+        user = await get_user_from_jwt_token(db, token)
+        if not user:
+            return common_response(Unauthorized())
         updated_permissions = []
         for permission in request.permissions:
             data = await rbacRepo.update_permission(
