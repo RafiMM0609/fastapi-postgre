@@ -5,12 +5,18 @@ from sqlalchemy.exc import SQLAlchemyError
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-DB_USER = 'postgres'
-DB_PASS = '0000'
-DB_HOST = 'localhost'
-DB_PORT = 5432
-DB_NAME = 'telkomai'
+from settings import (
+    DB_USER,
+    DB_PASS,
+    DB_HOST,
+    DB_PORT,
+    DB_NAME,
+)
+DB_USER = DB_USER
+DB_PASS = DB_PASS
+DB_HOST = DB_HOST
+DB_PORT = DB_PORT
+DB_NAME = DB_NAME
 
 DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
