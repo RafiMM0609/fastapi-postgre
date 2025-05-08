@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, TypedDict
 from pydantic import BaseModel
 
 class MetaResponse(BaseModel):
@@ -103,3 +103,50 @@ class SignUpRequest(BaseModel):
     password: str
     name: str
     phone: Optional[str] = None
+
+
+class PermissionsResponse(BaseModel):
+    class DetailPermission(BaseModel):
+        id: int
+        permission: str
+
+        class DetailModule(BaseModel):
+            id: int
+            nama: str
+
+        module: DetailModule
+
+    results: List[DetailPermission]
+
+
+class MenuResponse(BaseModel):
+    class MenuDetail(BaseModel):
+        id: int
+        url: str
+        name: str
+        icon: str
+        order: int
+        is_has_child: bool
+
+        class SubMenuDetail(BaseModel):
+            id: int
+            url: str
+            name: str
+            icon: str
+            is_has_child: bool
+            order: int
+            sub_menu: list
+
+        sub_menu: List[SubMenuDetail]
+
+    results: List[MenuDetail]
+
+class MenuDict(TypedDict):
+    id: int
+    url: str
+    menu_name: str
+    icon: str
+    is_has_child: bool
+    is_active: bool
+    order: int
+    sub_menu: List[dict]  # MenuDict

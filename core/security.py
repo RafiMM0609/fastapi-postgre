@@ -9,9 +9,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 from jose import JWTError, jwt
 from models.Permission import Permission
+from models.Role import Role
 from models.User import User
 # from models.Permission import Permission
 from settings import ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM, TZ
+from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
@@ -118,9 +121,12 @@ async def get_user_from_jwt_token(db: Session, jwt_token: str) -> Optional[User]
         if payload["exp"] < datetime.now().timestamp():
             return None
         id = payload.get("id")
-        query = select(User).where(User.id == id)
-        user = await db.execute(query)
-        user = user.scalar()
+        result = await db.execute(
+            select(User).options(
+                selectinload(User.roles).selectinload(Role.permissions).selectinload(Permission.module)
+            ).where(User.id == id)
+        )
+        user = result.scalar()
         return user
     except JWTError:
         return None

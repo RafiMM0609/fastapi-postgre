@@ -1,18 +1,24 @@
 from typing import Optional, List
 from sqlalchemy import or_, select, func, update
+from models.Menu import Menu
+from models.Permission import Permission
 from models.Role import Role
 from models.User import User
 from models.UserToken import UserToken
 from schemas.auth import (
     LoginSuccessResponse,
     LoginRequest,
+    MenuDict,
     SignUpRequest,
     SignupRequest,
     EditPassRequest,
     OtpRequest,
 )
+from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 from core.security import (
     generate_hash_password,
+    get_user_permissions,
     validated_user_password
 )
 from sqlalchemy.orm import Session
@@ -28,6 +34,76 @@ import string
 import traceback
 
 #function to resend otp for forget  passworw
+def expand_menu_tree_with_permissions(
+    db: Session, root_menu: List[Menu], permissions: List[Permission]
+) -> List[MenuDict]:
+    if len(root_menu) == 0:
+        return []
+    else:
+        return [
+            {
+                "id": y.id,
+                "url": y.url,
+                "name": y.name,
+                "icon": y.icon,
+                "is_has_child": y.is_has_child,
+                "isact": y.isact,
+                "is_show": y.is_show,
+                "order": y.order_id if y.order_id != None else 0,
+                "sub_menu": expand_menu_tree_with_permissions(
+                    db=db, root_menu=y.child, permissions=permissions
+                ),
+            }
+            for y in sorted(root_menu, key=lambda d: d.id)
+            if y.isact == True
+            and (
+                y.permission_id in [x.id for x in permissions]
+                # or y.permission_id == None
+            )
+        ]
+def prune_menu_tree(trees: List[MenuDict]) -> List[MenuDict]:
+    pruned_tree = []
+    for tree in trees:
+        if tree["is_has_child"] and len(tree["sub_menu"]) == 0:
+            continue
+        elif tree["is_has_child"] and len(tree["sub_menu"]) > 0:
+            tree["sub_menu"] = prune_menu_tree(tree["sub_menu"])
+        pruned_tree.append(tree)
+    return pruned_tree
+def sort_menu_tree_by_order(trees: List[MenuDict]) -> List[MenuDict]:
+    return [
+        {
+            "id": y["id"],
+            "title": y["name"],
+            "path": y["url"],
+            "icon": y["icon"],
+            "is_show": y["is_show"],
+            # "is_has_child": y["is_has_child"],
+            # "is_active": y["is_active"],
+            # "order": y["order"],
+            "sub": sort_menu_tree_by_order(y["sub_menu"]) if len(y["sub_menu"]) > 0 else False,
+        }
+        for y in sorted(trees, key=lambda d: d["order"])
+    ]
+async def generate_menu_tree_for_user(db: Session, user: User) -> List[MenuDict]:
+    try:
+        permissions = get_user_permissions(db=db, user=user)
+        query = select(Menu).options(
+                selectinload(Menu.child)
+            ).where(Menu.parent_id == None).order_by(Menu.id.asc())
+        result = await db.execute(query)
+        root_menu: List[Menu] = result.scalars().all()
+        menu_tree = expand_menu_tree_with_permissions(
+            db=db, root_menu=root_menu, permissions=permissions
+        )
+        menu_tree = prune_menu_tree(menu_tree)
+        menu_tree = sort_menu_tree_by_order(menu_tree)
+        print("menu tree", menu_tree)
+        return menu_tree
+    except Exception as e:
+        traceback.print_exc()
+        print("Error generate menu tree for user", e)
+        raise ValueError("Failed to generate menu tree for user")
 
 async def create_user_session(db: Session, user_id: str, token:str) -> str:
     try:

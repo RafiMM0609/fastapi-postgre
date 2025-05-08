@@ -15,7 +15,7 @@ from core.responses import (
     InternalServerError,
 )
 from models import get_db
-from core.security import get_user_from_jwt_token, generate_jwt_token_from_user
+from core.security import get_user_from_jwt_token, generate_jwt_token_from_user, get_user_permissions
 from core.security import (
     get_user_from_jwt_token,
     oauth2_scheme,
@@ -32,6 +32,8 @@ from schemas.auth import (
     LoginSuccess,
     LoginRequest,
     MeSuccessResponse,
+    MenuResponse,
+    PermissionsResponse,
     SignUpRequest,
 )
 import repository.auth  as authRepo
@@ -182,7 +184,7 @@ async def sign_up_route(
 )
 async def me(
         request: Request,
-        db: Session = Depends(get_db),
+        db: AsyncSession = Depends(get_db),
         token: str = Depends(oauth2_scheme)
         ):
     try:
@@ -202,10 +204,10 @@ async def me(
                     "phone": user.phone,
                     "refreshed_token": refresh_token,
                     "image": generate_link_download(user.photo),
-                    # "role": {
-                    #     "id": user.roles[0].id if user.roles else None,
-                    #     "name": user.roles[0].name if user.roles else None,
-                    # },
+                    "role": {
+                        "id": user.roles[0].id if user.roles else None,
+                        "name": user.roles[0].name if user.roles else None,
+                    },
                     "address":user.address,
                     "photo": generate_link_download(user.photo),
                 }
@@ -217,67 +219,66 @@ async def me(
         traceback.print_exc()
         return common_response(BadRequest(message=str(e)))
     
-# @router.get(
-#     "/permissions",
-#     responses={
-#         "200": {"model": PermissionsResponse},
-#         "401": {"model": UnauthorizedResponse},
-#         "500": {"model": InternalServerErrorResponse},
-#     },
-# )
-# async def permissions(
-#     request: Request,
-#     db: Session = Depends(get_db),
-#     token: str = Depends(oauth2_scheme)
-# ):
-#     try:
-#         user = get_user_from_jwt_token(db, token)
-#         if not user:
-#             return common_response(Unauthorized())
-#         user_permissions = get_user_permissions(db=db, user=user)
-
-#         return common_response(
-#             Ok(
-#                 data={
-#                     "results": [
-#                         {
-#                             "id": x.id,
-#                             "permission": x.name,
-#                             "module": {
-#                                 "id": x.module.id,
-#                                 "nama": x.module.name,
-#                             }
-#                             if x.module != None
-#                             else None,
-#                         }
-#                         for x in user_permissions
-#                     ]
-#                 },
-#                 message="Success get permisson"
-#             )
-#         )
-#     except Exception as e:
-#         return common_response(BadRequest(message=str(e)))
+@router.get(
+    "/permissions",
+    responses={
+        "200": {"model": PermissionsResponse},
+        "401": {"model": UnauthorizedResponse},
+        "500": {"model": InternalServerErrorResponse},
+    },
+)
+async def permissions(
+    request: Request,
+    db: Session = Depends(get_db),
+    token: str = Depends(oauth2_scheme)
+):
+    try:
+        user = await get_user_from_jwt_token(db, token)
+        if not user:
+            return common_response(Unauthorized())
+        user_permissions = get_user_permissions(db=db, user=user)
+        return common_response(
+            Ok(
+                data={
+                    "results": [
+                        {
+                            "id": x.id,
+                            "permission": x.name,
+                            "module": {
+                                "id": x.module.id,
+                                "nama": x.module.name,
+                            }
+                            if x.module != None
+                            else None,
+                        }
+                        for x in user_permissions
+                    ]
+                },
+                message="Success get permisson"
+            )
+        )
+    except Exception as e:
+        return common_response(BadRequest(message=str(e)))
     
-# @router.get(
-#     "/menu",
-#     responses={
-#         "200": {"model": MenuResponse},
-#         "401": {"model": UnauthorizedResponse},
-#         "500": {"model": InternalServerErrorResponse},
-#     },
-# )
-# async def menu(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
-#     try:
-#         user = get_user_from_jwt_token(db, token)
-#         if not user:
-#             return common_response(Unauthorized())
+@router.get(
+    "/menu",
+    responses={
+        "200": {"model": MenuResponse},
+        "401": {"model": UnauthorizedResponse},
+        "500": {"model": InternalServerErrorResponse},
+    },
+)
+async def menu(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
+    try:
+        user = await get_user_from_jwt_token(db, token)
+        if not user:
+            return common_response(Unauthorized())
 
-#         list_menu = authRepo.generate_menu_tree_for_user(db=db, user=user)
+        list_menu = await authRepo.generate_menu_tree_for_user(db=db, user=user)
 
-#         return common_response(Ok(data={"results": list_menu}))
-#     except Exception as e:
-#         import traceback
+        return common_response(Ok(data={"results": list_menu}))
+    except Exception as e:
+        import traceback
 
-#         traceback.print_exc()
-#         return common_response(BadRequest(message=str(e)))
+        traceback.print_exc()
+        return common_response(BadRequest(message=str(e)))
