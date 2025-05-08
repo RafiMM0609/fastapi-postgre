@@ -150,3 +150,15 @@ class MenuDict(TypedDict):
     is_active: bool
     order: int
     sub_menu: List[dict]  # MenuDict
+
+class ForgotPasswordSendEmailResponse(BaseModel):
+    message: str = "success kirim email ganti password, silahkan cek email anda"
+class ForgotPasswordSendEmailRequest(BaseModel):
+    email: str
+
+class ForgotPasswordChangePasswordResponse(BaseModel):
+    message: str = "success menganti password anda"
+
+class ForgotPasswordChangePasswordRequest(BaseModel):
+    token: str
+    password: str

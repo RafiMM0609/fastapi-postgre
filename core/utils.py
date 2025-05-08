@@ -19,6 +19,10 @@ def generate_token() -> str:
     token = "".join(choice(ascii_lowercase + digits) for _ in range(25))
     return token
 
+def generate_token_custom() -> str:
+    token = "".join(choice(ascii_lowercase + digits) for _ in range(8))
+    return token
+
 
 def generate_random_digit(num_digit: int = 16) -> str:
     token = "".join(choice(digits) for _ in range(num_digit))
