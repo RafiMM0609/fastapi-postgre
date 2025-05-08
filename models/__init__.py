@@ -1,16 +1,19 @@
 import logging
+import os
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.exc import SQLAlchemyError
-
+if os.environ.get("ENVIRONTMENT") != "prod":
+    from dotenv import load_dotenv
+ 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-DB_USER = 'postgres'
-DB_PASS = '0000'
-DB_HOST = 'localhost'
-DB_PORT = 5432
-DB_NAME = 'telkomai'
+DB_USER = os.environ.get('DB_USER')
+DB_PASS = os.environ.get('DB_PASS')
+DB_HOST = os.environ.get('DB_HOST')
+DB_PORT = os.environ.get('DB_PORT')
+DB_NAME = os.environ.get('DB_NAME')
 
 DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 

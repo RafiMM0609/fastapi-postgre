@@ -13,6 +13,7 @@ from core.logging_config import logger
 from routes.auth import router as auth_router
 from routes.rbac import router as rbac_router
 from fastapi.responses import HTMLResponse
+import os
 
 
 if SENTRY_DSN != None:  # NOQA
@@ -117,5 +118,11 @@ async def hello():
     </html>
     """
     return HTMLResponse(content=html_content)
+
+DB_USER = os.environ.get('DB_USER')
+DB_PASS = os.environ.get('DB_PASS')
+DB_HOST = os.environ.get('DB_HOST')
+DB_PORT = os.environ.get('DB_PORT')
+DB_NAME = os.environ.get('DB_NAME')
 
 
