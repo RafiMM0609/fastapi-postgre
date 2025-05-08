@@ -8,12 +8,18 @@ if os.environ.get("ENVIRONTMENT") != "prod":
  
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-DB_USER = os.environ.get('DB_USER')
-DB_PASS = os.environ.get('DB_PASS')
-DB_HOST = os.environ.get('DB_HOST')
-DB_PORT = os.environ.get('DB_PORT')
-DB_NAME = os.environ.get('DB_NAME')
+from settings import (
+    DB_USER,
+    DB_PASS,
+    DB_HOST,
+    DB_PORT,
+    DB_NAME,
+)
+DB_USER = DB_USER
+DB_PASS = DB_PASS
+DB_HOST = DB_HOST
+DB_PORT = DB_PORT
+DB_NAME = DB_NAME
 
 DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 

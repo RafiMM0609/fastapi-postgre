@@ -8,7 +8,14 @@ if os.environ.get("ENVIRONTMENT") != "prod":
  
 # Environtment
 ENVIRONTMENT = os.environ.get("ENVIRONTMENT", "development")
- 
+
+# Database
+DB_USER = os.environ.get("DB_USER", "postgres")
+DB_PASS = os.environ.get("DB_PASS", "0000")
+DB_HOST = os.environ.get("DB_HOST", "localhost")
+DB_PORT = int(os.environ.get("DB_PORT", 5432))
+DB_NAME = os.environ.get("DB_NAME", "telkomai")
+
 # CORS
 CORS_ALLOWED_ORIGINS = os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",")
  
