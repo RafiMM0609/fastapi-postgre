@@ -1,29 +1,34 @@
-# syntax=docker/dockerfile:1
-FROM python:3.11-slim
+FROM python:3.11.2-slim-buster
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y build-essential libpq-dev curl && rm -rf /var/lib/apt/lists/*
+WORKDIR /usr/src/app
 
-# Install Poetry
-ENV POETRY_VERSION=1.8.2
-RUN curl -sSL https://install.python-poetry.org | python3 -
-ENV PATH="/root/.local/bin:$PATH"
+# Install poetry
+RUN pip install poetry
 
-WORKDIR /app
+# Copy .env file
+COPY ./.env .
 
-# Copy pyproject and poetry.lock first for better cache
-COPY pyproject.toml poetry.lock ./
+# Configure poetry to not use a virtual environment since Docker is already isolated
+RUN poetry config virtualenvs.create false
 
-# Install dependencies
-RUN poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi --only main
+# Copy only pyproject.toml first (not the lock file)
+COPY pyproject.toml ./
 
-# Copy the rest of the code
+# Generate a new lock file
+RUN poetry lock
+
+# Copy the rest of the application code
 COPY . .
 
-# Copy .env if exists, otherwise .env.example
-RUN if [ -f .env ]; then cp .env .env.docker; else cp .env.example .env.docker; fi
+# Install dependencies
+# RUN poetry install --without dev --no-interaction
+RUN poetry install --no-root
 
 EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Copy the rest of the application code
+COPY . .
+
+# Run the application with poetry
+# CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--loop", "uvloop", "--http", "httptools", "--backlog", "2048", "--reload"]
+CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "6", "--loop", "uvloop", "--http", "httptools", "--backlog", "2048"]
