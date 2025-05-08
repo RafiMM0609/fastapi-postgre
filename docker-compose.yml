@@ -1,0 +1,66 @@
+version: '3.9'
+
+services:
+  app:
+    build: .
+    container_name: telkom-ai-app
+    env_file:
+      - .env.example
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+      - minio
+    volumes:
+      - .:/app
+    networks:
+      - telkom-ai-net
+
+  # db:
+  #   image: postgres:15
+  #   container_name: telkom-ai-db
+  #   restart: always
+  #   environment:
+  #     POSTGRES_USER: userb
+  #     POSTGRES_PASSWORD: passdb
+  #     POSTGRES_DB: dbname
+  #   ports:
+  #     - "5422:5432"
+  #   volumes:
+  #     - pgdata:/var/lib/postgresql/data
+  #   networks:
+  #     - telkom-ai-net
+
+  # redis:
+  #   image: redis:7
+  #   container_name: telkom-ai-redis
+  #   restart: always
+  #   ports:
+  #     - "6379:6379"
+  #   networks:
+  #     - telkom-ai-net
+
+  # minio:
+  #   image: minio/minio:latest
+  #   container_name: telkom-ai-minio
+  #   command: server /data --console-address ":9001"
+  #   environment:
+  #     MINIO_ROOT_USER: minioadmin
+  #     MINIO_ROOT_PASSWORD: minioadmin123
+  #   ports:
+  #     - "9000:9000"
+  #     - "9001:9001"
+  #   volumes:
+  #     - minio-data:/data
+  #   networks:
+  #     - telkom-ai-net
+
+# volumes:
+#   pgdata:
+#   minio-data:
+
+networks:
+  telkom-ai-net:
+    driver: bridge
