@@ -38,8 +38,10 @@ from schemas.auth import (
     MeSuccessResponse,
     MenuResponse,
     PermissionsResponse,
+    EditUserRequest,
     SignUpRequest,
     ForgotPasswordSendEmailResponse,
+    RoleOptionsResponse,
 )
 import repository.auth  as authRepo
 from urllib.parse import urlparse
@@ -127,8 +129,98 @@ async def list_user(
             )
         )
     except Exception as e:
-        return common_response(BadRequest(message=str(e))
+                return common_response(BadRequest(message=str(e)))
+
+
+@router.get(
+    "/detail-user/{user_id}",
+    responses={
+        "200": {"model": MeSuccessResponse},
+        "400": {"model": BadRequestResponse},
+        "401": {"model": UnauthorizedResponse},
+        "404": {"model": NotFoundResponse},
+        "500": {"model": InternalServerErrorResponse},
+    },
 )
+async def detail_user(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    token: str = Depends(oauth2_scheme),
+):
+    try:
+        user = await authRepo.get_user_by_id(db=db, user_id=user_id)
+        if not user:
+            return common_response(NotFound(message="User tidak ditemukan"))
+            
+        return common_response(
+            Ok(
+                data={
+                    "id": str(user.id),
+                    "email": user.email,
+                    "name": user.name,
+                    "isact": user.isact,
+                    "phone": user.phone,
+                    "image": generate_link_download(user.photo),
+                    "role": {
+                        "id": user.roles[0].id if user.roles else None,
+                        "name": user.roles[0].name if user.roles else None,
+                    },
+                    "address": user.address,
+                    "photo": generate_link_download(user.photo),
+                }
+            )
+        )
+    except Exception as e:
+        traceback.print_exc()
+        return common_response(BadRequest(message=str(e)))
+
+@router.put(
+    "/edit-user/{user_id}",
+    responses={
+        "200": {"model": MeSuccessResponse},
+        "400": {"model": BadRequestResponse},
+        "401": {"model": UnauthorizedResponse},
+        "404": {"model": NotFoundResponse},
+        "500": {"model": InternalServerErrorResponse},
+    },
+)
+async def edit_user(
+    user_id: str,
+    request: EditUserRequest,
+    db: AsyncSession = Depends(get_db),
+    token: str = Depends(oauth2_scheme),
+):
+    try:
+        current_user = await get_user_from_jwt_token(db, token)
+        if not current_user:
+            return common_response(Unauthorized())
+
+        updated_user = await authRepo.edit_user(db=db, user_id=user_id, request=request)
+        if not updated_user:
+            return common_response(NotFound(message="User tidak ditemukan"))
+
+        return common_response(
+            Ok(
+                data={
+                    "id": str(updated_user.id),
+                    "email": updated_user.email,
+                    "name": updated_user.name,
+                    "isact": updated_user.isact,
+                    "phone": updated_user.phone,
+                    "image": generate_link_download(updated_user.photo),
+                    "role": {
+                        "id": updated_user.roles[0].id if updated_user.roles else None,
+                        "name": updated_user.roles[0].name if updated_user.roles else None,
+                    },
+                    "address": updated_user.address,
+                    "photo": generate_link_download(updated_user.photo),
+                },
+                message="Berhasil mengupdate data user"
+            )
+        )
+    except Exception as e:
+        traceback.print_exc()
+        return common_response(BadRequest(message=str(e)))
 
 @router.post(
     "/forgot-password/send-email",
@@ -340,5 +432,34 @@ async def logout_route(db: Session = Depends(get_db), token: str = Depends(oauth
     except Exception as e:
         import traceback
 
+        traceback.print_exc()
+        return common_response(BadRequest(message=str(e)))
+    
+@router.get(
+    "/role-options",
+    responses={
+        "200": {"model": RoleOptionsResponse},
+        "401": {"model": UnauthorizedResponse},
+        "500": {"model": InternalServerErrorResponse},
+    },
+)
+async def role_options(
+    db: AsyncSession = Depends(get_db),
+    token: str = Depends(oauth2_scheme),
+):
+    try:
+        current_user = await get_user_from_jwt_token(db, token)
+        if not current_user:
+            return common_response(Unauthorized())
+
+        role_options = await authRepo.get_role_options(db=db)
+        
+        return common_response(
+            Ok(
+                data={"results": role_options},
+                message="Berhasil mendapatkan daftar role"
+            )
+        )
+    except Exception as e:
         traceback.print_exc()
         return common_response(BadRequest(message=str(e)))

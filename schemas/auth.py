@@ -1,5 +1,5 @@
 from typing import List, Optional, TypedDict
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
 class MetaResponse(BaseModel):
     count:int
@@ -162,3 +162,18 @@ class ForgotPasswordChangePasswordResponse(BaseModel):
 class ForgotPasswordChangePasswordRequest(BaseModel):
     token: str
     password: str
+
+class EditUserRequest(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    role_id: Optional[int] = None
+    isact: Optional[bool] = None
+
+class RoleOption(BaseModel):
+    id: int
+    name: str
+    role: str
+
+class RoleOptionsResponse(BaseModel):
+    results: List[RoleOption]
