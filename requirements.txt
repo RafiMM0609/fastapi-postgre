@@ -17,3 +17,6 @@ cryptography==44.0.2
 pycryptodome==3.22.0
 asyncpg==0.30.0
 minio==7.2.15
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-mock==3.12.0 

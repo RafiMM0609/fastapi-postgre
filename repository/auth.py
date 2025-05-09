@@ -86,7 +86,7 @@ async def logout_user(db:AsyncSession, user:User, token:str):
                 UserToken.isact == True
             )
         )
-        exist_data = result.scalar()
+        exist_data = await result.scalar()
         # print("exist data", exist_data)
         if exist_data is not None:
             exist_data.isact = False
@@ -247,7 +247,7 @@ async def forgot_password(db, email):
         # Query the user from the User model using SQLAlchemy
         query = select(User).filter(User.email == email)
         result = await db.execute(query)
-        user_obj = result.scalar()
+        user_obj = await result.scalar()
 
         if not user_obj:
             raise ValueError("User with this email not found.")
@@ -353,13 +353,13 @@ async def login(
             token_length = 6
             random_token = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(token_length))
             
-            await send_login_token(
-                email_to=user_data["email"], 
-                body={
-                    "email": user_data["email"], 
-                    "token": random_token
-                    }
-                )
+            # await send_login_token(
+            #     email_to=user_data["email"], 
+            #     body={
+            #         "email": user_data["email"], 
+            #         "token": random_token
+            #         }
+            #     )
             # Update token_login in user tenant table
             update_response = (
                 db.table("user_tenant")
@@ -501,7 +501,7 @@ async def get_user_by_email(
 ) -> Optional[User]:
     try:
         if exclude_soft_delete == True:
-            pass
+            query = select(User).filter(User.email == email, User.isact == True)
         else:
             query = select(User).filter(User.email == email)
         results = await db.execute(query)
@@ -511,19 +511,20 @@ async def get_user_by_email(
         print("Error login : ",e)
         traceback.print_exc()
         return None
+
 async def check_user_password(db: AsyncSession, email: str, password: str) -> Optional[User]:
     try:
         user = await get_user_by_email(db, email=email)
         if user is None:
-            return False
+            return None
         else:
             if validated_user_password(user.password, password):
                 return user
-        return False
+        return None
     except Exception as e:
         print("Error in check_user_password:", e)
         traceback.print_exc()
-        return False
+        return None
 
     
 async def edit_password(
@@ -549,50 +550,27 @@ async def list_user(
     page: int = 1,
     page_size: int = 10,
     src: Optional[str] = None,
-    user: Optional[User] = None,
-    client_id: Optional[int] = None,
-    outlet_id: Optional[str] = None,
 ):
     try:
         limit = page_size
         offset = (page - 1) * limit
-        # get list role id that have permission to
 
-        # Query utama dengan JOIN ke Client dan UserRole
-        query = select(
-                User.id,
-                User.name,
-                )\
-                .filter(User.isact == True)
-
-        # Query count untuk paginasi
-        query_count = (select(func.count(User.id))
-                       .filter(User.isact == True)
-                       )
+        query = select(User.id, User.name).filter(User.isact == True)
+        query_count = select(func.count(User.id)).filter(User.isact == True)
 
         if src:
-            query = (query.filter(
-                (User.name.ilike(f"%{src}%"))
-            ))
+            query = query.filter(User.name.ilike(f"%{src}%"))
+            query_count = query_count.filter(User.name.ilike(f"%{src}%"))
 
-            query_count = (query_count.filter(
-                (User.name.ilike(f"%{src}%"))
-            ))
+        query = query.order_by(User.created_at.desc()).limit(limit).offset(offset)
 
-        # Tambahkan order, limit, dan offset
-        query = (query.order_by(User.created_at.desc())
-                 .limit(limit)
-                 .offset(offset))
-
-        # Eksekusi query dengan await
         result = await db.execute(query)
-        rows = result.all()
-        
-        # Konversi Row objects ke dictionary
+        rows = await result.all() 
+
         data = [{"id": row.id, "name": row.name} for row in rows]
-        
+
         count_result = await db.execute(query_count)
-        num_data = count_result.scalar()
+        num_data = await count_result.scalar() 
         num_page = (num_data + limit - 1) // limit
 
         return (data, num_data, num_page)
@@ -613,7 +591,7 @@ async def get_user_by_id(
         )
         
         result = await db.execute(query)
-        user = result.scalar_one_or_none()
+        user = await result.scalar_one_or_none()
         
         return user
 
@@ -644,7 +622,7 @@ async def edit_user(
             
             role_query = select(Role).filter(Role.id == request.role_id, Role.isact == True)
             role_result = await db.execute(role_query)
-            new_role = role_result.scalar_one_or_none()
+            new_role = await role_result.scalar_one_or_none()
             
             if new_role:
                 user.roles.append(new_role)
@@ -666,10 +644,10 @@ async def get_role_options(
         query = select(Role).filter(
             Role.isact == True
         ).order_by(Role.id.asc())
-        
+
         result = await db.execute(query)
-        roles = result.scalars().all()
-        
+        roles = await result.scalars()
+
         role_options = [
             {
                 "id": role.id,
@@ -678,7 +656,7 @@ async def get_role_options(
             }
             for role in roles
         ]
-        
+
         return role_options
 
     except Exception as e:
