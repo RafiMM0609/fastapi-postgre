@@ -1,34 +1,18 @@
 FROM python:3.11.2-slim-buster
+# FROM python:3.10-buster
+# FROM python:3.11-buster
 
-WORKDIR /usr/src/app
+WORKDIR /app
 
-# Install poetry
-RUN pip install poetry
-
-# Copy .env file
+COPY ./requirements.txt .
 COPY ./.env .
+RUN pip install -r requirements.txt
 
-# Configure poetry to not use a virtual environment since Docker is already isolated
-RUN poetry config virtualenvs.create false
+RUN pip install watchfiles
 
-# Copy only pyproject.toml first (not the lock file)
-COPY pyproject.toml ./
-
-# Generate a new lock file
-RUN poetry lock
-
-# Copy the rest of the application code
-COPY . .
-
-# Install dependencies
-# RUN poetry install --without dev --no-interaction
-RUN poetry install --no-root
 
 EXPOSE 8000
 
-# Copy the rest of the application code
 COPY . .
 
-# Run the application with poetry
-# CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--loop", "uvloop", "--http", "httptools", "--backlog", "2048", "--reload"]
-CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
