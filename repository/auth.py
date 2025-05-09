@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from pytz import timezone
 from sqlalchemy import or_, select, func, update, delete
 from core.utils import generate_token, generate_token_custom
@@ -6,6 +6,7 @@ from models.ForgotPassword import ForgotPassword
 from models.Menu import Menu
 from models.Permission import Permission
 from models.Role import Role
+from models.UserRole import UserRole
 from models.User import User
 from models.UserToken import UserToken
 from schemas.auth import (
@@ -15,6 +16,7 @@ from schemas.auth import (
     SignUpRequest,
     SignupRequest,
     EditPassRequest,
+    EditUserRequest,
     OtpRequest,
 )
 from sqlalchemy.future import select
@@ -597,7 +599,92 @@ async def list_user(
 
     except Exception as e:
         raise ValueError(e)
-    
+
+async def get_user_by_id(
+    db: AsyncSession,
+    user_id: str,
+) -> Optional[User]:
+    try:
+        query = select(User).filter(
+            User.id == user_id,
+            User.isact == True
+        ).options(
+            selectinload(User.roles)
+        )
+        
+        result = await db.execute(query)
+        user = result.scalar_one_or_none()
+        
+        return user
+
+    except Exception as e:
+        raise ValueError(e)
+
+async def edit_user(
+    db: AsyncSession,
+    user_id: str,
+    request: EditUserRequest,
+) -> Optional[User]:
+    try:
+        user = await get_user_by_id(db=db, user_id=user_id)
+        if not user:
+            return None
+
+        if request.name is not None:
+            user.name = request.name
+        if request.phone is not None:
+            user.phone = request.phone
+        if request.address is not None:
+            user.address = request.address
+        if request.isact is not None:
+            user.isact = request.isact
+
+        if request.role_id is not None:
+            user.roles = []
+            
+            role_query = select(Role).filter(Role.id == request.role_id, Role.isact == True)
+            role_result = await db.execute(role_query)
+            new_role = role_result.scalar_one_or_none()
+            
+            if new_role:
+                user.roles.append(new_role)
+
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        
+        return user
+
+    except Exception as e:
+        traceback.print_exc()
+        raise ValueError(str(e))
+
+async def get_role_options(
+    db: AsyncSession,
+) -> List[Dict[str, Any]]:
+    try:
+        query = select(Role).filter(
+            Role.isact == True
+        ).order_by(Role.id.asc())
+        
+        result = await db.execute(query)
+        roles = result.scalars().all()
+        
+        role_options = [
+            {
+                "id": role.id,
+                "name": role.name,
+                "role" : role.group
+            }
+            for role in roles
+        ]
+        
+        return role_options
+
+    except Exception as e:
+        traceback.print_exc()
+        raise ValueError(str(e))
+
 async def sign_up (
     db: AsyncSession,
     request: SignUpRequest,
